@@ -1,0 +1,6 @@
+
+sensor    |    nagative        positive 
+----------------------------------------
+Bosch_x   |    finger-tip      shoulder 
+Bosch_y   |    thump           pinky
+Bosch_z   |    air/nail        thigh/palm
