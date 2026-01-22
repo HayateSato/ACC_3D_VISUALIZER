@@ -1,6 +1,21 @@
 
-sensor    |    nagative        positive 
-----------------------------------------
-Bosch_x   |    finger-tip      shoulder 
-Bosch_y   |    thump           pinky
-Bosch_z   |    air/nail        thigh/palm
+Orientation Mapping 
+
+
+<BOSCH IMU>
+|   sensor    |    nagative     |    positive     |
+---------------------------------------------------
+|   Bosch_x   |    finger-tip   |    shoulder     |
+|   Bosch_y   |    thump        |    pinky        |
+|   Bosch_z   |    air/nail     |    thigh/palm   |
+
+
+<Non_BOSCH IMU>
+|   sensor    |    nagative     |    positive     |
+---------------------------------------------------
+|   acc_x     |    thump        |    pinky        |
+|   acc_y     |    shoulder     |    finger-tip   |
+|   acc_z     |    air/nail     |    thigh/palm   |
+
+
+
