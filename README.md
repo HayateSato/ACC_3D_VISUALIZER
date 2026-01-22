@@ -62,6 +62,25 @@ C:\Users\HayateSato\Documents\6G\FD_ACCBARO\results\fall_data_exports\20260120\S
 | **Vector Checkbox** | Show/hide acceleration vector |
 | **Mouse Drag on 3D** | Rotate camera view |
 
+## Sensor Configuration
+
+### Configuring Different Hardware
+
+If your sensors use different sampling rates or sensitivity ranges, edit `sensor_config.py`:
+
+```python
+# Example: Bosch sensor at 50Hz instead of 25Hz
+BOSCH_CONFIG = {
+    'name': 'BHI260AP',
+    'lsb_per_g': 4096.0,     # LSB/g for ±8g range
+    'range_g': 8,
+    'sample_rate_hz': 50,    # Change this to match your setup
+    'description': 'Bosch BHI260AP IMU at 50Hz'
+}
+```
+
+The visualizer automatically detects data format (raw LSB vs g units) and adjusts accordingly.
+
 ## Understanding the Visualization
 
 ### Sensor Orientation (Bosch on LEFT wrist)
