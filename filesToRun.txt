@@ -1,9 +1,0 @@
-
-
-
-
-
-acc_visualizer_enhanced.py          input: smarkoApp CSV --> defualt only for bosch
-acc_visualizer_enhanced_v2.py       input: smarkoApp CSV --> defualt only for bosch + fixed gravitty axis 
-acc_visualizer.py                   input: smarkoApp CSV --> original, bosch and non_bosch
-acc_visualizer_v2.py                input: smarkoApp CSV --> bosch and non_bosch (non_bosch is calibrated to bosch (both angles and orientation mapping))

@@ -204,5 +204,6 @@ temp/
 
 # Project specific
 .claude
+obsolete/
 acc_visualizer.py
 # acc_visualizer_v2.py
