@@ -77,13 +77,13 @@ from typing import Tuple, Union
 # ORIENTATION CORRECTION MATRIX
 # Handles the 90° rotation difference between the two sensors
 # Mapping from non-bosch axes to bosch axes:
-#   Bosch_X (finger↔shoulder) = Non-bosch_Y (shoulder↔finger) with sign flip
-#   Bosch_Y (thumb↔pinky)     = Non-bosch_X (thumb↔pinky)
-#   Bosch_Z (nail↔palm)       = Non-bosch_Z (nail↔palm)
+#   Bosch_X (finger↔shoulder) = -Non-bosch_Y (shoulder↔finger) with sign flip
+#   Bosch_Y (thumb↔pinky)     = +Non-bosch_X (thumb↔pinky)
+#   Bosch_Z (nail↔palm)       = -Non-bosch_Z (palm↔nail) with sign flip (Z is inverted!)
 ORIENTATION_MATRIX = np.array([
     [ 0, -1,  0],  # Bosch_X = -Non-bosch_Y (flip Y to get shoulder→finger as positive→negative)
     [ 1,  0,  0],  # Bosch_Y = +Non-bosch_X (pinky is positive for both)
-    [ 0,  0,  1],  # Bosch_Z = +Non-bosch_Z (same orientation)
+    [ 0,  0, -1],  # Bosch_Z = -Non-bosch_Z (Z axis is inverted between sensors)
 ])
 
 # LEGACY: Original transformation matrix from least squares regression

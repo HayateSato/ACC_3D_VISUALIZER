@@ -377,8 +377,8 @@ class AccVisualizer:
             sample_mag = np.sqrt(self.acc_x[0]**2 + self.acc_y[0]**2 + self.acc_z[0]**2)
             print(f"  Before calibration - Magnitude: {sample_mag:.1f}")
 
-            # Only apply calibration if data is in raw LSB format
-            if self.sensor_scale > 100:  # Raw LSB data
+            # Check data format and handle accordingly
+            if self.sensor_scale > 5000:  # Raw LSB data (expected ~16384 for non-Bosch)
                 # Apply orientation correction and scaling transformation
                 for i in range(len(self.acc_x)):
                     cx, cy, cz = transform_non_bosch_to_bosch(
@@ -390,19 +390,38 @@ class AccVisualizer:
                 # After calibration, use Bosch scale
                 self.sensor_scale = BOSCH_CONFIG['lsb_per_g']
                 print(f"  After calibration - Scale: {self.sensor_scale}")
-            else:
-                print(f"  WARNING: Data appears to be in g/mg units (scale={self.sensor_scale}), not raw LSB!")
-                print(f"  Skipping transformation - applying only orientation correction...")
-                # For data in g units, just rotate axes without scaling
+            elif self.sensor_scale > 100:  # milli-g units (magnitude ~1000)
+                print(f"  Data is in milli-g units (scale={self.sensor_scale})")
+                # For milli-g data: apply orientation correction and scale to match Bosch
+                # Non-Bosch milli-g to Bosch LSB: multiply by ~4.096 (Bosch is 4096 LSB/g)
+                mg_to_bosch_scale = BOSCH_CONFIG['lsb_per_g'] / 1000.0  # 4.096
                 for i in range(len(self.acc_x)):
-                    # Simple 90° rotation: Bosch_X = -NonBosch_Y, Bosch_Y = NonBosch_X, Bosch_Z = NonBosch_Z
-                    temp_x = -self.acc_y[i]
-                    temp_y = self.acc_x[i]
-                    temp_z = self.acc_z[i]
+                    # Apply axis mapping based on orientation differences:
+                    # Bosch_X (finger↔shoulder) = -NonBosch_Y (shoulder↔finger, inverted)
+                    # Bosch_Y (thumb↔pinky) = NonBosch_X (thumb↔pinky, same)
+                    # Bosch_Z (nail↔palm) = -NonBosch_Z (palm↔nail, inverted)
+                    temp_x = -self.acc_y[i] * mg_to_bosch_scale
+                    temp_y = self.acc_x[i] * mg_to_bosch_scale
+                    temp_z = -self.acc_z[i] * mg_to_bosch_scale  # Z is inverted between sensors
                     self.acc_x[i], self.acc_y[i], self.acc_z[i] = temp_x, temp_y, temp_z
-                print(f"  After orientation correction - Sample values: X={self.acc_x[0]:.1f}, Y={self.acc_y[0]:.1f}, Z={self.acc_z[0]:.1f}")
-                # Keep the detected scale (1.0 for g units, 1000.0 for mg units)
-                print(f"  Scale unchanged: {self.sensor_scale}")
+                print(f"  After calibration - Sample values: X={self.acc_x[0]:.1f}, Y={self.acc_y[0]:.1f}, Z={self.acc_z[0]:.1f}")
+                # Now using Bosch scale
+                self.sensor_scale = BOSCH_CONFIG['lsb_per_g']
+                print(f"  After calibration - Scale: {self.sensor_scale}")
+            else:
+                print(f"  WARNING: Data appears to be in g units (scale={self.sensor_scale})")
+                # For data in g units, rotate axes and scale to Bosch LSB
+                g_to_bosch_scale = BOSCH_CONFIG['lsb_per_g']  # 4096
+                for i in range(len(self.acc_x)):
+                    # Apply axis mapping based on orientation differences:
+                    # Bosch_X = -NonBosch_Y, Bosch_Y = NonBosch_X, Bosch_Z = -NonBosch_Z
+                    temp_x = -self.acc_y[i] * g_to_bosch_scale
+                    temp_y = self.acc_x[i] * g_to_bosch_scale
+                    temp_z = -self.acc_z[i] * g_to_bosch_scale  # Z is inverted between sensors
+                    self.acc_x[i], self.acc_y[i], self.acc_z[i] = temp_x, temp_y, temp_z
+                print(f"  After calibration - Sample values: X={self.acc_x[0]:.1f}, Y={self.acc_y[0]:.1f}, Z={self.acc_z[0]:.1f}")
+                self.sensor_scale = BOSCH_CONFIG['lsb_per_g']
+                print(f"  After calibration - Scale: {self.sensor_scale}")
 
         self.acc_mag = np.sqrt(self.acc_x**2 + self.acc_y**2 + self.acc_z**2)
 
