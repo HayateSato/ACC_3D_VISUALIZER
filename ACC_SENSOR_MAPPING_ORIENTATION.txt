@@ -1,21 +1,37 @@
 
-Orientation Mapping 
+Orientation Mapping
 
 
 <BOSCH IMU>
-|   sensor    |    nagative     |    positive     |
+|   sensor    |    negative     |    positive     |
 ---------------------------------------------------
 |   Bosch_x   |    finger-tip   |    shoulder     |
-|   Bosch_y   |    thump        |    pinky        |
+|   Bosch_y   |    thumb        |    pinky        |
 |   Bosch_z   |    air/nail     |    thigh/palm   |
 
 
 <Non_BOSCH IMU>
-|   sensor    |    nagative     |    positive     |
+|   sensor    |    negative     |    positive     |
 ---------------------------------------------------
-|   acc_x     |    thump        |    pinky        |
+|   acc_x     |    thumb        |    pinky        |
 |   acc_y     |    shoulder     |    finger-tip   |
-|   acc_z     |    air/nail     |    thigh/palm   |
+|   acc_z     |    thigh/palm   |    air/nail     |
 
 
+<TRANSFORMATION: Non-Bosch to Bosch>
+To convert Non-Bosch readings to Bosch-equivalent orientation:
+
+|   Bosch     |   =   |   Non-Bosch Transform   |   Reason                           |
+--------------------------------------------------------------------------------------
+|   Bosch_x   |   =   |   -acc_y                |   Y axis maps to X, sign inverted  |
+|   Bosch_y   |   =   |   +acc_x                |   X axis maps to Y, same sign      |
+|   Bosch_z   |   =   |   -acc_z                |   Z axis inverted (opposite dirs)  |
+
+Matrix form:
+    [ Bosch_x ]   [ 0  -1   0 ]   [ acc_x ]
+    [ Bosch_y ] = [ 1   0   0 ] * [ acc_y ]
+    [ Bosch_z ]   [ 0   0  -1 ]   [ acc_z ]
+
+Note: For milli-g data, also multiply by scale factor (4096/1000 = 4.096)
+      to convert to Bosch LSB units (4096 LSB/g).
 
