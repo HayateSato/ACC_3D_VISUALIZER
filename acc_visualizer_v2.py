@@ -32,14 +32,30 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from pathlib import Path
 import sys
 
-# Try to import calibration from FD_ACCBARO project
+# Try to import calibration and config from local directory
 try:
-    sys.path.insert(0, str(Path(__file__).parent.parent / "6G" / "FD_ACCBARO"))
-    from sensor_calibration import transform_non_bosch_to_bosch, TRANSFORM_MATRIX, TRANSFORM_OFFSET
+    from sensor_calibration import transform_non_bosch_to_bosch
     CALIBRATION_AVAILABLE = True
+    print("Using local sensor_calibration with orientation correction")
 except ImportError:
-    CALIBRATION_AVAILABLE = False
-    print("Note: Sensor calibration module not found. Non-bosch sensors will use raw values.")
+    try:
+        sys.path.insert(0, str(Path(__file__).parent.parent / "6G" / "FD_ACCBARO"))
+        from sensor_calibration import transform_non_bosch_to_bosch
+        CALIBRATION_AVAILABLE = True
+        print("Using FD_ACCBARO sensor_calibration (legacy)")
+    except ImportError:
+        CALIBRATION_AVAILABLE = False
+        print("Note: Sensor calibration module not found. Non-bosch sensors will use raw values.")
+
+# Import sensor configuration
+try:
+    from sensor_config import BOSCH_CONFIG, NON_BOSCH_CONFIG, detect_data_format
+    CONFIG_AVAILABLE = True
+except ImportError:
+    CONFIG_AVAILABLE = False
+    # Default configurations
+    BOSCH_CONFIG = {'lsb_per_g': 4096.0, 'sample_rate_hz': 25}
+    NON_BOSCH_CONFIG = {'lsb_per_g': 16384.0, 'sample_rate_hz': 100}
 
 
 class LeftHandModel:
@@ -303,22 +319,36 @@ class AccVisualizer:
                     'x': bosch_df['bosch_acc_x'].values,
                     'y': bosch_df['bosch_acc_y'].values,
                     'z': bosch_df['bosch_acc_z'].values,
-                    'scale': 4096.0,  # Bosch BMA400 scale
+                    'scale': BOSCH_CONFIG['lsb_per_g'],
                 }
                 print(f"  Bosch samples: {len(bosch_df)}")
+                print(f"  Bosch scale: {BOSCH_CONFIG['lsb_per_g']} LSB/g")
 
         # Non-Bosch sensor
         if 'is_accelerometer' in df.columns:
             nb_df = df[df['is_accelerometer'] == 1].copy().reset_index(drop=True)
             if len(nb_df) > 0:
+                # Detect data format
+                x_vals = nb_df['acc_x'].values
+                y_vals = nb_df['acc_y'].values
+                z_vals = nb_df['acc_z'].values
+
+                if CONFIG_AVAILABLE:
+                    data_info = detect_data_format(x_vals, y_vals, z_vals, NON_BOSCH_CONFIG['lsb_per_g'])
+                    print(f"  Non-Bosch data format: {data_info['format']} (magnitude: {data_info['magnitude']:.2f})")
+                    detected_scale = data_info['estimated_scale']
+                else:
+                    detected_scale = NON_BOSCH_CONFIG['lsb_per_g']
+
                 self.acc_data['non_bosch'] = {
                     'timestamps': nb_df['timestamp'].values,
-                    'x': nb_df['acc_x'].values,
-                    'y': nb_df['acc_y'].values,
-                    'z': nb_df['acc_z'].values,
-                    'scale': 16384.0,  # Typical IMU scale
+                    'x': x_vals,
+                    'y': y_vals,
+                    'z': z_vals,
+                    'scale': detected_scale,
                 }
                 print(f"  Non-Bosch samples: {len(nb_df)}")
+                print(f"  Non-Bosch scale: {detected_scale} LSB/g")
 
         if not self.acc_data:
             raise ValueError("No accelerometer data found!")
@@ -341,15 +371,47 @@ class AccVisualizer:
         # Apply calibration for non_bosch if available
         if self.current_sensor == 'non_bosch' and self.apply_calibration and CALIBRATION_AVAILABLE:
             print("  Applying calibration transform...")
-            for i in range(len(self.acc_x)):
-                cx, cy, cz = transform_non_bosch_to_bosch(
-                    self.acc_x[i], self.acc_y[i], self.acc_z[i]
-                )
-                self.acc_x[i], self.acc_y[i], self.acc_z[i] = cx, cy, cz
-            # After calibration, use Bosch scale
-            self.sensor_scale = 4096.0
+            print(f"  Before calibration - Sample values: X={self.acc_x[0]:.1f}, Y={self.acc_y[0]:.1f}, Z={self.acc_z[0]:.1f}")
+            print(f"  Before calibration - Scale: {self.sensor_scale}")
+
+            sample_mag = np.sqrt(self.acc_x[0]**2 + self.acc_y[0]**2 + self.acc_z[0]**2)
+            print(f"  Before calibration - Magnitude: {sample_mag:.1f}")
+
+            # Only apply calibration if data is in raw LSB format
+            if self.sensor_scale > 100:  # Raw LSB data
+                # Apply orientation correction and scaling transformation
+                for i in range(len(self.acc_x)):
+                    cx, cy, cz = transform_non_bosch_to_bosch(
+                        self.acc_x[i], self.acc_y[i], self.acc_z[i]
+                    )
+                    self.acc_x[i], self.acc_y[i], self.acc_z[i] = cx, cy, cz
+
+                print(f"  After calibration - Sample values: X={self.acc_x[0]:.1f}, Y={self.acc_y[0]:.1f}, Z={self.acc_z[0]:.1f}")
+                # After calibration, use Bosch scale
+                self.sensor_scale = BOSCH_CONFIG['lsb_per_g']
+                print(f"  After calibration - Scale: {self.sensor_scale}")
+            else:
+                print(f"  WARNING: Data appears to be in g/mg units (scale={self.sensor_scale}), not raw LSB!")
+                print(f"  Skipping transformation - applying only orientation correction...")
+                # For data in g units, just rotate axes without scaling
+                for i in range(len(self.acc_x)):
+                    # Simple 90° rotation: Bosch_X = -NonBosch_Y, Bosch_Y = NonBosch_X, Bosch_Z = NonBosch_Z
+                    temp_x = -self.acc_y[i]
+                    temp_y = self.acc_x[i]
+                    temp_z = self.acc_z[i]
+                    self.acc_x[i], self.acc_y[i], self.acc_z[i] = temp_x, temp_y, temp_z
+                print(f"  After orientation correction - Sample values: X={self.acc_x[0]:.1f}, Y={self.acc_y[0]:.1f}, Z={self.acc_z[0]:.1f}")
+                # Keep the detected scale (1.0 for g units, 1000.0 for mg units)
+                print(f"  Scale unchanged: {self.sensor_scale}")
 
         self.acc_mag = np.sqrt(self.acc_x**2 + self.acc_y**2 + self.acc_z**2)
+
+        # Debug: Check data variance
+        print(f"  Data variance - X: {np.var(self.acc_x):.1f}, Y: {np.var(self.acc_y):.1f}, Z: {np.var(self.acc_z):.1f}")
+        print(f"  Data range - X: [{np.min(self.acc_x):.1f}, {np.max(self.acc_x):.1f}]")
+        print(f"  Data range - Y: [{np.min(self.acc_y):.1f}, {np.max(self.acc_y):.1f}]")
+        print(f"  Data range - Z: [{np.min(self.acc_z):.1f}, {np.max(self.acc_z):.1f}]")
+
         self.trail_points = []
 
     def run(self):
